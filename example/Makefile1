@@ -1,0 +1,19 @@
+# Compiler
+CC = g++
+
+# Compiler Flags
+CFLAGS = -std=c++11
+
+# Target Executable
+TARGET = server
+
+# Source File
+SOURCE = server.cpp
+
+# Create the Target Executable
+$(TARGET): $(SOURCE)
+	$(CC) $(CFLAGS) -o $(TARGET) $(SOURCE)
+
+# Clean Target
+clean:
+	rm -f $(TARGET)
