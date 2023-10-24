@@ -5,10 +5,10 @@ CC = g++
 CFLAGS = -std=c++11
 
 # Target Executable
-TARGET = server
+TARGET = client
 
 # Source File
-SOURCE = server.cpp
+SOURCE = client.cpp
 
 # Create the Target Executable
 $(TARGET): $(SOURCE)
