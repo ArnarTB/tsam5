@@ -184,7 +184,7 @@ void serverMessage(int socket, std::string message){
 
 std::string stringOfServers()
 {
-    std::string msg = "QUERYSERVERS,P3_GROUP_57,127.0.0.1,4070;";
+    std::string msg = "QUERYSERVERS,P3_GROUP_57;"; //,127.0.0.1,4070;";
     // for(auto const& pair : servers)
     // {
     //     msg += pair.second->name + "," + pair.second->ip + "," + std::to_string(pair.second->port) + ";";
