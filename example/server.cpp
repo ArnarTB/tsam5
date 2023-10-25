@@ -313,11 +313,11 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
   // Split command from client into tokens for parsing
   std::stringstream stream(buffer);
 
-  while(stream >> token){
-      tokens.push_back(token);
-  }
+  // get first token
+    std::getline(stream, token, ',');
+    tokens.push_back(token);
 
-  if((tokens[0].compare("CONNECT") == 0) && (tokens.size() == 3))
+  if ((tokens[0].compare("CONNECT") == 0))
   {
      //clients[clientSocket]->name = tokens[1];
         std::string ip = tokens[1];
@@ -370,15 +370,17 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
  
       closeClient(clientSocket, openClientSockets, clientMaxfds);
   }
-  else if(tokens[0].compare("SENDMSG") == 0 && (tokens.size() == 3))
+  else if(tokens[0].compare("SENDMSG") == 0)
   {
-        // Get message from the client and print on server
-        // Message from client is in tokens[2]
+        // next token is group id
+        std::string groupid;
+        std::getline(stream, groupid, ',');
+        // rest of the stream is the message
+        std::string message;
+        std::getline(stream, message);
+        // send the message to server associated with groupid
         
-        std::cout << "Hole" << std::endl;
-     // Reducing the msg length by 1 loses the excess "," - which
-     // granted is totally cheating.
-     //send(clientSocket, msg.c_str(), msg.length()-1, 0);
+
 
   }
   // This is slightly fragile, since it's relying on the order
