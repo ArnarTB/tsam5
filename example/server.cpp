@@ -278,18 +278,9 @@ void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServ
     while(std::getline(stream, token, ',')){
         tokens.push_back(token);
     }
-        std::cout << tokens[0] << std::endl;
 
-        std::cout << tokens[1] << std::endl;
-        std::cout << tokens[2] << std::endl;
-        std::cout << tokens[3] << std::endl;
-        std::cout << tokens[0].compare("SERVERS") << std::endl;
-    
       if((tokens[0].compare("SERVERS") == 0))
   {     
-        std::cout << tokens[1] << std::endl;
-        std::cout << tokens[2] << std::endl;
-        std::cout << tokens[3] << std::endl;
         servers[serverSocket]->name = tokens[1];
         servers[serverSocket]->ip = tokens[2];
         servers[serverSocket]->port = std::stoi(tokens[3]);
@@ -373,7 +364,7 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
   else if(tokens[0].compare("SENDMSG") == 0 && (tokens.size() == 3))
   {
 
-
+    
      for(auto const& names : servers)
      {
         if(names.second->name.compare(tokens[1]) == 0)
@@ -621,7 +612,6 @@ int main(int argc, char* argv[])
                       {   
                         
                             std::string booja = decodeMessage(buffer);
-
                             // If you need to copy the content into a separate char array:
                             char buffer1[5000];  // Ensure the buffer size is adequate
                             strcpy(buffer1, booja.c_str());
