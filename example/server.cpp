@@ -372,17 +372,10 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
   }
   else if(tokens[0].compare("SENDMSG") == 0 && (tokens.size() == 3))
   {
-
-
-     for(auto const& names : servers)
-     {
-        if(names.second->name.compare(tokens[1]) == 0)
-        {
-            std::string msg = "MSG " + tokens[2];
-            send(names.second->sock, msg.c_str(), msg.length(), 0);
-        }
-     }
-   
+        // Get message from the client and print on server
+        // Message from client is in tokens[2]
+        
+        std::cout << "Hole" << std::endl;
      // Reducing the msg length by 1 loses the excess "," - which
      // granted is totally cheating.
      //send(clientSocket, msg.c_str(), msg.length()-1, 0);
