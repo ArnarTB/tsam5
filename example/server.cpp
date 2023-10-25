@@ -127,18 +127,30 @@ int open_socket(int portno, fd_set *openSockets, int *maxfds)
         printf("Listen failed on port %i\n", portno);
         exit(0);
     }
-    else
-    {
         FD_ZERO(openSockets);
         FD_SET(sock, openSockets);
         *maxfds = sock;
-    }
+    
       return(sock);
    }
 }
 
 // Close a client's connection, remove it from the client list, and
 // tidy up select sockets afterwards.
+
+void printFDS(const fd_set *set, int maxfds)
+{
+    std::cout << "Sockets in fd_set: ";
+    for(int i = 0; i <= maxfds; ++i)
+    {
+        if(FD_ISSET(i, set))
+        {
+            std::cout << i << " ";
+        }
+    }
+    std::cout << std::endl;
+}
+
 
 void closeClient(int clientSocket, fd_set *openClientSockets, int *maxfds)
 {
@@ -149,6 +161,7 @@ void closeClient(int clientSocket, fd_set *openClientSockets, int *maxfds)
      // one has to be determined. Socket fd's can be reused by the Kernel,
      // so there aren't any nice ways to do this.
 
+    printFDS(openClientSockets, *maxfds);
      close(clientSocket);      
 
      if(*maxfds == clientSocket)
@@ -162,6 +175,8 @@ void closeClient(int clientSocket, fd_set *openClientSockets, int *maxfds)
      // And remove from the list of open sockets.
 
      FD_CLR(clientSocket, openClientSockets);
+         printFDS(openClientSockets, *maxfds);
+
 
 }
 std::string packageMessage(std::string &message)
@@ -189,7 +204,7 @@ std::string decodeMessage(const std::string &packagedMessage)
 {
     if (packagedMessage.size() < 2) // To ensure there's at least STX and ETX
         return "";
-
+    
     return packagedMessage.substr(1, packagedMessage.size() - 2);
 }
 
@@ -199,7 +214,7 @@ void serverMessage(int socket, std::string message){
     send(socket, message.c_str(), message.length(), 0);
 }
 
-std::string stringOfServers()
+std::string queryServerString()
 {
     std::string msg = "QUERYSERVERS,P3_GROUP_57,127.0.0.1,4070;";
     // for(auto const& pair : servers)
@@ -208,48 +223,84 @@ std::string stringOfServers()
     // }
     return msg;
 }
-int newConnections(int listenSock, int *maxfds, int newSock, fd_set *openSockets, sockaddr_in *address, socklen_t *addressLen)
+std::string serverString(std::string msg)
 {
-        // Accept a new connection and find the fd for the connection
-        newSock = accept(listenSock, (struct sockaddr *)&address,addressLen);
+    //std::string msg = "SERVERS,P3_GROUP_57,127.0.0.1,4070;";
+    for(auto const& pair : servers)
+    {
+        msg += pair.second->name + "," + pair.second->ip + "," + std::to_string(pair.second->port) + ";";
+    }
+    return msg;
+}
+//clienewConnections(listenClientSock, &clientMaxfds, clientSock, &openClientSockets, &client, &clientLen);
 
-        printf("accept***\n");
+// int newConnections(int listenSock, int *maxfds, int newSock, fd_set *openSockets, sockaddr_in *address, socklen_t *addressLen)
+// {
+//         // Accept a new connection and find the fd for the connection
+//         newSock = accept(listenSock, (struct sockaddr *)&address,addressLen);
 
-        // Add new client/server to the list of open sockets
-        FD_SET(newSock, openSockets);
+//         printf("accept***\n");
+//         std::cout << newSock << "bob" << std::endl;
+//         // Add new client/server to the list of open sockets
+//         //printFDS(openSockets, *maxfds);
+//         FD_SET(newSock, openSockets);
+//         std::cout << "1" << std::endl;
 
-        // And update the maximum file descriptor
-        *maxfds = std::max(*maxfds, newSock) ;
+//         // And update the maximum file descriptor
+//         *maxfds = std::max(*maxfds, newSock);
+//         std::cout << "1" << std::endl;
 
-        // create a new client to store information.
 
-        return newSock;
+//         // create a new client to store information.
+
+//         return newSock;
             
 
-}
+// }
 
-// void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServerSockets, int *clientMaxfds, int *serverMaxfds,
-//                   char *buffer) 
-// {
+void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServerSockets, int *clientMaxfds, int *serverMaxfds,
+                  char *buffer) 
+ {
 //   std::vector<std::string> tokens;
 //   std::string token;
 
 //   // Split command from client into tokens for parsing
 //   std::stringstream stream(buffer);
 
-//   while(stream >> token)
-//       tokens.push_back(token);
-//       if((tokens[0].compare("QUERYSERVERS") == 0) && (tokens.size() == 2))
-//   {
+    std::vector<std::string> tokens;
+    std::string token;
+    char boofer[2000];
+    std::cout << buffer << std::endl;
+    // Split command from client into tokens using comma as delimiter
+    std::stringstream stream(buffer);
+    std::cout << "im here" << std::endl;
 
-//         //std::string queries = stringOfServers();
-//         // Inform the client that the connection was successful
-//         std::string msg = "SERVERS,P3_GROUP_57;"
-//         serverMessage(serverSocket, msg.c_str());
+    while(std::getline(stream, token, ',')){
+        tokens.push_back(token);
+    }
+        std::cout << tokens[0] << std::endl;
+
+        std::cout << tokens[1] << std::endl;
+        std::cout << tokens[2] << std::endl;
+        std::cout << tokens[3] << std::endl;
+        std::cout << tokens[0].compare("SERVERS") << std::endl;
+    
+      if((tokens[0].compare("SERVERS") == 0))
+  {     
+        std::cout << tokens[1] << std::endl;
+        std::cout << tokens[2] << std::endl;
+        std::cout << tokens[3] << std::endl;
+        servers[serverSocket]->name = tokens[1];
+        servers[serverSocket]->ip = tokens[2];
+        servers[serverSocket]->port = std::stoi(tokens[3]);
+        //std::string queries = queryServerString();
+        // Inform the client that the connection was successful
+        // std::string msg = "SERVERS,P3_GROUP_57;"
+        // serverMessage(serverSocket, msg.c_str());
     
 
-//   }
-// }
+  }
+}
 // Process command from client on the server
 
 void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServerSockets, int *clientMaxfds, int *serverMaxfds,
@@ -257,12 +308,14 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
 {
   std::vector<std::string> tokens;
   std::string token;
+  char boofer[2000];
 
   // Split command from client into tokens for parsing
   std::stringstream stream(buffer);
 
-  while(stream >> token)
+  while(stream >> token){
       tokens.push_back(token);
+  }
 
   if((tokens[0].compare("CONNECT") == 0) && (tokens.size() == 3))
   {
@@ -295,9 +348,16 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
 
         FD_SET(newServerSocket, openServerSockets);
         *serverMaxfds = std::max(*serverMaxfds, newServerSocket);
-        std::string queries = stringOfServers();
+        sleep(1);
+        recv(newServerSocket, boofer, sizeof(boofer), MSG_DONTWAIT);
+        std::cout << boofer << std::endl;
+
+        std::string queries = queryServerString();
         // Inform the client that the connection was successful
         serverMessage(newServerSocket, queries.c_str());
+        std::string msg = "SERVERS,P3_GROUP_57,127.0.0.1,4070;";
+        msg = serverString(msg);
+        serverMessage(newServerSocket, msg.c_str());
         servers[newServerSocket] = new Server(newServerSocket);  // ég færði þetta
     
 
@@ -310,36 +370,36 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
  
       closeClient(clientSocket, openClientSockets, clientMaxfds);
   }
-  else if(tokens[0].compare("WHO") == 0)
+  else if(tokens[0].compare("SENDMSG") == 0 && (tokens.size() == 3))
   {
-     std::cout << "Who is logged on" << std::endl;
-     std::string msg;
 
-     for(auto const& names : clients)
+
+     for(auto const& names : servers)
      {
-        msg += names.second->name + ",";
-
+        if(names.second->name.compare(tokens[1]) == 0)
+        {
+            std::string msg = "MSG " + tokens[2];
+            send(names.second->sock, msg.c_str(), msg.length(), 0);
+        }
      }
+   
      // Reducing the msg length by 1 loses the excess "," - which
      // granted is totally cheating.
-     send(clientSocket, msg.c_str(), msg.length()-1, 0);
+     //send(clientSocket, msg.c_str(), msg.length()-1, 0);
 
   }
   // This is slightly fragile, since it's relying on the order
   // of evaluation of the if statement.
-  else if((tokens[0].compare("MSG") == 0) && (tokens[1].compare("ALL") == 0))
+  else if((tokens[0].compare("LISTSERVERS") == 0))
   {
-      std::string msg;
-      for(auto i = tokens.begin()+2;i != tokens.end();i++) 
-      {
-          msg += *i + " ";
-      }
-
-      for(auto const& pair : clients)
-      {
-          send(pair.second->sock, msg.c_str(), msg.length(),0);
-      }
-  }
+      std::string msg = "SERVERS: ";
+      
+      msg = serverString(msg);
+      send(clientSocket, msg.c_str(), msg.length(), 0);
+   }
+      
+      //send(pair.second->sock, msg.c_str(), msg.length(),0);
+  
   else if(tokens[0].compare("MSG") == 0)
   {
       for(auto const& pair : clients)
@@ -441,7 +501,7 @@ int main(int argc, char* argv[])
         timeout.tv_usec = 0; // 0 microseconds
         int m = select(clientMaxfds + 1, &readClientSockets, NULL, &exceptClientSockets, &timeout);
         int n = select(serverMaxfds + 1, &readServerSockets, NULL, &exceptServerSockets, &timeout);
-        std::cout << "m: " << m << std::endl;
+        //std::cout << "m: " << m << std::endl;
         if(m < 0)
         {
             perror("select failed - closing down\n");
@@ -452,8 +512,19 @@ int main(int argc, char* argv[])
             // First, accept  any new connections to the server on the listening socket
 
             if(FD_ISSET(listenClientSock, &readClientSockets))
-            {
-                clientSock = newConnections(listenClientSock, &clientMaxfds, clientSock, &openClientSockets, &client, &clientLen);
+            {   
+                //printFDS(&openClientSockets, clientMaxfds);
+                //clientSock = newConnections(listenClientSock, &clientMaxfds, clientSock, &openClientSockets, &client, &clientLen);
+                clientSock = accept(listenClientSock, (struct sockaddr *)&client,&clientLen);
+
+                printf("accept***\n");
+
+                FD_SET(clientSock, &openClientSockets);
+
+
+        // And update the maximum file descriptor
+                clientMaxfds = std::max(clientMaxfds, clientSock);
+
                 if(clientSock > 0)
                 {
                     clients[clientSock] = new Client(clientSock);// create a new client to store information.
@@ -509,12 +580,14 @@ int main(int argc, char* argv[])
             if(FD_ISSET(listenServerSock, &readServerSockets))
             {   
                 std::cout << "server connection" << std::endl;
-                serverSock = newConnections(listenServerSock, &serverMaxfds, serverSock, &openServerSockets, &server, &serverLen);
-                if(clientSock > 0)
+                serverSock = accept(listenServerSock, (struct sockaddr *)&server,&serverLen);
+                FD_SET(serverSock, &openServerSockets);
+                //serverSock = newConnections(listenServerSock, &serverMaxfds, serverSock, &openServerSockets, &server, &serverLen);
+                if(serverSock > 0)
                 {
                     servers[serverSock] = new Server(serverSock);// create a new client to store information.
                     printf("server connected on server: %d\n", serverSock);
-                    std::string queries = stringOfServers();
+                    std::string queries = queryServerString();
                     serverMessage(serverSock, queries.c_str()); // Inform the client that the connection was successful
 
                 }
@@ -546,9 +619,11 @@ int main(int argc, char* argv[])
                       // only triggers if there is something on the socket for us.
                       else
                       {   
-                        decodeMessage(buffer);
-                          std::cout << buffer << std::endl;
-                          //serverCommand(server->sock, &openClientSockets, &openServerSockets, &clientMaxfds, &serverMaxfds, buffer);
+                        
+                        std::string booja = decodeMessage(buffer);
+                        std::cout << booja << std::endl;
+                          //std::cout << buffer << std::endl;
+                          serverCommand(server->sock, &openClientSockets, &openServerSockets, &clientMaxfds, &serverMaxfds, buffer);
 
 
 
