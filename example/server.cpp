@@ -80,7 +80,7 @@ std::map<int, Server*> servers; // Lookup table for per Client information
 //
 // Returns -1 if unable to create the socket for any reason.
 
-int open_socket(int portno)
+int open_socket(int portno, fd_set *openSockets, int *maxfds)
 {
    struct sockaddr_in sk_addr;   // address settings for bind()
    int sock;                     // socket opened for this port
@@ -99,17 +99,14 @@ int open_socket(int portno)
    // Turn on SO_REUSEADDR to allow socket to be quickly reused after 
    // program exit.
 
-   if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &set, sizeof(set)) < 0)
-   {
-      perror("Failed to set SO_REUSEADDR:");
-   }
+
    set = 1;
-#ifdef __APPLE__     
+
    if(setsockopt(sock, SOL_SOCKET, SOCK_NONBLOCK, &set, sizeof(set)) < 0)
    {
      perror("Failed to set SOCK_NOBBLOCK");
    }
-#endif
+
    memset(&sk_addr, 0, sizeof(sk_addr));
 
    sk_addr.sin_family      = AF_INET;
@@ -125,6 +122,17 @@ int open_socket(int portno)
    }
    else
    {
+    if(listen(sock, BACKLOG) < 0)
+    {
+        printf("Listen failed on port %i\n", portno);
+        exit(0);
+    }
+    else
+    {
+        FD_ZERO(openSockets);
+        FD_SET(sock, openSockets);
+        *maxfds = sock;
+    }
       return(sock);
    }
 }
@@ -166,9 +174,9 @@ std::string packageMessage(std::string &message)
     packagedMessage += STX; // Start of message
 
     for(char c : message) {
-        // if(c == STX || c == ETX || c == DLE) {
-        //     packagedMessage += DLE; // Byte-stuffing
-        // }
+        if(c == STX || c == ETX || c == DLE) {
+            packagedMessage += DLE; // Byte-stuffing
+        }
         packagedMessage += c;
     }
 
@@ -176,6 +184,15 @@ std::string packageMessage(std::string &message)
 
     return packagedMessage;
 }
+
+std::string decodeMessage(const std::string &packagedMessage)
+{
+    if (packagedMessage.size() < 2) // To ensure there's at least STX and ETX
+        return "";
+
+    return packagedMessage.substr(1, packagedMessage.size() - 2);
+}
+
 void serverMessage(int socket, std::string message){
     message = packageMessage(message);
     std::cout << message << std::endl;
@@ -184,14 +201,55 @@ void serverMessage(int socket, std::string message){
 
 std::string stringOfServers()
 {
-    std::string msg = "QUERYSERVERS,P3_GROUP_57;"; //,127.0.0.1,4070;";
+    std::string msg = "QUERYSERVERS,P3_GROUP_57,127.0.0.1,4070;";
     // for(auto const& pair : servers)
     // {
     //     msg += pair.second->name + "," + pair.second->ip + "," + std::to_string(pair.second->port) + ";";
     // }
     return msg;
 }
+int newConnections(int listenSock, int *maxfds, int newSock, fd_set *openSockets, sockaddr_in *address, socklen_t *addressLen)
+{
+        // Accept a new connection and find the fd for the connection
+        newSock = accept(listenSock, (struct sockaddr *)&address,addressLen);
 
+        printf("accept***\n");
+
+        // Add new client/server to the list of open sockets
+        FD_SET(newSock, openSockets);
+
+        // And update the maximum file descriptor
+        *maxfds = std::max(*maxfds, newSock) ;
+
+        // create a new client to store information.
+
+        return newSock;
+            
+
+}
+
+// void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServerSockets, int *clientMaxfds, int *serverMaxfds,
+//                   char *buffer) 
+// {
+//   std::vector<std::string> tokens;
+//   std::string token;
+
+//   // Split command from client into tokens for parsing
+//   std::stringstream stream(buffer);
+
+//   while(stream >> token)
+//       tokens.push_back(token);
+//       if((tokens[0].compare("QUERYSERVERS") == 0) && (tokens.size() == 2))
+//   {
+
+//         //std::string queries = stringOfServers();
+//         // Inform the client that the connection was successful
+//         std::string msg = "SERVERS,P3_GROUP_57;"
+//         serverMessage(serverSocket, msg.c_str());
+    
+
+//   }
+// }
 // Process command from client on the server
 
 void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServerSockets, int *clientMaxfds, int *serverMaxfds,
@@ -337,44 +395,37 @@ int main(int argc, char* argv[])
     }
 
     // Setup socket for server to listen to
-
-    listenClientSock = open_socket(atoi(argv[1]));
-    listenServerSock = open_socket(atoi(argv[1])+1);
+    listenClientSock = open_socket(atoi(argv[1]), &openClientSockets, &clientMaxfds);
+    listenServerSock = open_socket(atoi(argv[1])+1, &openServerSockets, &serverMaxfds);
     
 
     printf("Listening on port: %d\n", atoi(argv[1]));
 
-    if(listen(listenClientSock, BACKLOG) < 0)
-    {
-        printf("Listen failed on port %s\n", argv[1]);
-        exit(0);
-    }
-    else
-    {
-        FD_ZERO(&openClientSockets);
-        FD_SET(listenClientSock, &openClientSockets);
-        clientMaxfds = listenClientSock;
-    }
+    // if(listen(listenClientSock, BACKLOG) < 0)
+    // {
+    //     printf("Listen failed on port %s\n", argv[1]);
+    //     exit(0);
+    // }
+    // else
+    // {
+    //     FD_ZERO(&openClientSockets);
+    //     FD_SET(listenClientSock, &openClientSockets);
+    //     clientMaxfds = listenClientSock;
+    // }
 
-    if(listen(listenServerSock, BACKLOG) < 0)
-    {
-        printf("Listen failed on port %s\n", argv[1]);
-        exit(0);
-    }
+    // if(listen(listenServerSock, BACKLOG) < 0)
+    // {
+    //     printf("Listen failed on port %s\n", argv[1]);
+    //     exit(0);
+    // }
 
-    else 
-    // Add listen socket to socket set we are monitoring
-    {
-        FD_ZERO(&openServerSockets);
-        FD_SET(listenServerSock, &openServerSockets);
-        serverMaxfds = listenServerSock;
-        // servers[listenServerSock] = new Server(listenServerSock);
-        // servers[listenServerSock]->name = "P3_GROUP_52";
-        // servers[listenServerSock]->ip = "127.0.0.1"; //þarf að laga þetta
-        // servers[listenServerSock]->port = 4070; //þarf að laga þetta
-
-
-    }
+    // else 
+    // // Add listen socket to socket set we are monitoring
+    // {
+    //     FD_ZERO(&openServerSockets);
+    //     FD_SET(listenServerSock, &openServerSockets);
+    //     serverMaxfds = listenServerSock;
+    // }
     finished = false;
 
     while(!finished)
@@ -386,11 +437,11 @@ int main(int argc, char* argv[])
         memset(buffer, 0, sizeof(buffer));
         // Look at sockets and see which ones have something to be read()
         struct timeval timeout;
-        timeout.tv_sec = 0;  // 0 seconds
+        timeout.tv_sec = 1;  // 0 seconds
         timeout.tv_usec = 0; // 0 microseconds
         int m = select(clientMaxfds + 1, &readClientSockets, NULL, &exceptClientSockets, &timeout);
         int n = select(serverMaxfds + 1, &readServerSockets, NULL, &exceptServerSockets, &timeout);
-
+        std::cout << "m: " << m << std::endl;
         if(m < 0)
         {
             perror("select failed - closing down\n");
@@ -402,24 +453,16 @@ int main(int argc, char* argv[])
 
             if(FD_ISSET(listenClientSock, &readClientSockets))
             {
-
-               clientSock = accept(listenClientSock, (struct sockaddr *)&client,
-                                   &clientLen);
-
-               printf("accept***\n");
-               // Add new client to the list of open sockets
-               FD_SET(clientSock, &openClientSockets);
-
-               // And update the maximum file descriptor
-               clientMaxfds = std::max(clientMaxfds, clientSock) ;
-
-               // create a new client to store information.
-               clients[clientSock] = new Client(clientSock);
-
-               // Decrement the number of sockets waiting to be dealt with
-               m--;
-
-               printf("Client connected on server: %d\n", clientSock);
+                clientSock = newConnections(listenClientSock, &clientMaxfds, clientSock, &openClientSockets, &client, &clientLen);
+                if(clientSock > 0)
+                {
+                    clients[clientSock] = new Client(clientSock);// create a new client to store information.
+                    printf("Client connected on server: %d\n", clientSock);
+                }
+                else{
+                    printf("Client connection failed\n");
+                }
+                m--;   // Decrement the number of sockets waiting to be dealt with
             }
             // Now check for commands from clients
             std::list<Client *> disconnectedClients;  
@@ -464,28 +507,23 @@ int main(int argc, char* argv[])
         {
             // First, accept  any new connections to the server on the listening socket
             if(FD_ISSET(listenServerSock, &readServerSockets))
-            {
-               serverSock = accept(listenServerSock, (struct sockaddr *)&server,
-                                   &serverLen);
-               printf("accept***\n");
-               // Add new client to the list of open sockets
-               FD_SET(serverSock, &openServerSockets);
+            {   
+                std::cout << "server connection" << std::endl;
+                serverSock = newConnections(listenServerSock, &serverMaxfds, serverSock, &openServerSockets, &server, &serverLen);
+                if(clientSock > 0)
+                {
+                    servers[serverSock] = new Server(serverSock);// create a new client to store information.
+                    printf("server connected on server: %d\n", serverSock);
+                    std::string queries = stringOfServers();
+                    serverMessage(serverSock, queries.c_str()); // Inform the client that the connection was successful
 
-               // And update the maximum file descriptor
-               serverMaxfds = std::max(serverMaxfds, serverSock) ;
+                }
+                else{
+                    printf("Server connection failed\n");
+                }
 
-                std::string queries = stringOfServers();
-       
-                serverMessage(serverSock, queries.c_str()); // Inform the client that the connection was successful
+               n--;// Decrement the number of sockets waiting to be dealt with
 
-               // create a new client to store information.
-               servers[serverSock] = new Server(serverSock);
-
-
-               // Decrement the number of sockets waiting to be dealt with
-               n--;
-
-               printf("Server connected on server: %d\n", serverSock);
             }
             // Now check for commands from clients
             std::list<Server *> disconnectedServers;  
@@ -507,8 +545,12 @@ int main(int argc, char* argv[])
                       // We don't check for -1 (nothing received) because select()
                       // only triggers if there is something on the socket for us.
                       else
-                      {
+                      {   
+                        decodeMessage(buffer);
                           std::cout << buffer << std::endl;
+                          //serverCommand(server->sock, &openClientSockets, &openServerSockets, &clientMaxfds, &serverMaxfds, buffer);
+
+
 
                           //clientCommand(server->sock, &openServerSockets, &openServerSockets, &serverMaxfds, &serverMaxfds, buffer);
                       }
