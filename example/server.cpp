@@ -613,10 +613,14 @@ int main(int argc, char* argv[])
                       else
                       {   
                         
-                        std::string booja = decodeMessage(buffer);
-                        std::cout << booja << std::endl;
+                            std::string booja = decodeMessage(buffer);
+
+                            // If you need to copy the content into a separate char array:
+                            char buffer1[5000];  // Ensure the buffer size is adequate
+                            strcpy(buffer1, booja.c_str());
+
                           //std::cout << buffer << std::endl;
-                          serverCommand(server->sock, &openClientSockets, &openServerSockets, &clientMaxfds, &serverMaxfds, buffer);
+                          serverCommand(server->sock, &openClientSockets, &openServerSockets, &clientMaxfds, &serverMaxfds, buffer1);
 
 
 
