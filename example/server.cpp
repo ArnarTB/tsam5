@@ -361,11 +361,22 @@ void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServ
   else if (tokens[0].compare("FETCH_MSGS") == 0) 
   {
     std::string recipientGroupID = tokens[1];
-    
+    int recipientSocket;
+    // find server socket to send message to
+    for(auto const& pair : servers)
+    {
+        if (pair.second->name.compare(recipientGroupID) == 0)
+        {
+            recipientSocket = pair.second->sock;
+            break;
+        } else {
+            std::cout << "Server not found! Not connected" << std::endl;
+        }
+    }
 
     for (auto const& message : messages[recipientGroupID]) {
         std::string msg = "SEND_MSG," + recipientGroupID + "," + message.senderGroupID + "," + message.message + ";";
-        serverMessage(serverSocket, msg.c_str());
+        serverMessage(recipientSocket, msg.c_str());
     }
     messages[recipientGroupID].clear();
     std::cout << "Messages sent!" << std::endl;
@@ -465,6 +476,23 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
             }
         }
         
+  }
+  else if (tokens[0].compare("GETMSG") == 0) {
+    std::string groupid;
+    std::getline(stream, groupid);
+
+    // find server socket to send message to
+    for(auto const& pair : servers)
+    {
+        if (pair.second->name.compare(groupid) == 0)
+        {
+            std::string msgToSend = "FETCH_MSGS," + groupid + ";";
+            serverMessage(pair.second->sock, msgToSend.c_str());
+        } else {
+            std::cout << "Server not found! Not connected" << std::endl;
+        }
+    }
+
   }
 
   else if((tokens[0].compare("LISTSERVERS") == 0))
