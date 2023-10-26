@@ -156,7 +156,7 @@ int main(int argc, char* argv[])
         // get first token
         std::getline(stream, token, ',');
         tokens.push_back(token);
-        if (tokens[0].compare("getmsg") == 0 || tokens[0].compare("getallmsg") == 0) {
+        if (tokens[0].compare("GETMSG") == 0 || tokens[0].compare("SENDMSG") == 0) {
             std::string time = getCurrentTimestamp();
             std::cout << time << std::endl;
         }
