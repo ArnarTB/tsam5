@@ -204,7 +204,7 @@ void closeClient(int clientSocket, fd_set *openClientSockets, int *maxfds)
      // so there aren't any nice ways to do this.
 
     printFDS(openClientSockets, *maxfds);
-     close(clientSocket);      
+    close(clientSocket);      
 
      if(*maxfds == clientSocket)
      {
@@ -355,7 +355,11 @@ void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServ
     msg.senderGroupID = senderGroupID;
     messages[recipientGroupID].push_back(msg);
     std::cout << "Message stored!" << std::endl;
+    if (recipientGroupID == "P3_GROUP_90") {
+        std::cout << "Message received: " << message << std::endl;
+        // send to client
 
+    }
   }
 
   else if (tokens[0].compare("FETCH_MSGS") == 0) 
@@ -482,15 +486,25 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
     std::getline(stream, groupid);
 
     // find server socket to send message to
-    for(auto const& pair : servers)
-    {
-        if (pair.second->name.compare(groupid) == 0)
-        {
-            std::string msgToSend = "FETCH_MSGS," + groupid + ";";
-            serverMessage(pair.second->sock, msgToSend.c_str());
-        } else {
-            std::cout << "Server not found! Not connected" << std::endl;
-        }
+    // for(auto const& pair : servers)
+    // {
+    //     if (pair.second->name.compare(groupid) == 0)
+    //     {
+    //         std::string msgToSend = "FETCH_MSGS," + groupid + ";";
+    //         serverMessage(pair.second->sock, msgToSend.c_str());
+    //     } else {
+    //         std::cout << "Server not found! Not connected" << std::endl;
+    //     }
+    // }
+
+    // get first message from list of messages
+    if (messages[groupid].size() > 0) {
+        Message msg = messages[groupid].front();
+        std::string msgToClient = msg.message;
+        std::cout << "Message to send: " << msgToClient << std::endl;
+        // send to client
+        send(clientSocket, msgToClient.c_str(), msgToClient.length(), 0);
+        messages[groupid].pop_front();
     }
 
   }
