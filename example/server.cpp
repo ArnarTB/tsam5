@@ -16,6 +16,8 @@
 #include <netinet/tcp.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <net/if.h>
+#include <ifaddrs.h>
 #include <string.h>
 #include <algorithm>
 #include <map>
@@ -75,6 +77,41 @@ class Server
 std::map<int, Client*> clients; // Lookup table for per Client information
 
 std::map<int, Server*> servers; // Lookup table for per Client information
+
+// Get IP address
+std::string ipAddress; // Declare a global variable to store the IP address
+int clientPort;
+int serverPort;
+
+std::string getSpecificIPAddress(const std::string& interfaceName) {
+    struct ifaddrs *myaddrs, *ifa;
+    void *in_addr;
+    char buf[64];
+
+    if (getifaddrs(&myaddrs) != 0) {
+        perror("getifaddrs");
+        exit(1);
+    }
+
+    for (ifa = myaddrs; ifa != nullptr; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr == nullptr)
+            continue;
+        if (!(ifa->ifa_flags & IFF_UP))
+            continue;
+
+        if (ifa->ifa_name == interfaceName && ifa->ifa_addr->sa_family == AF_INET) {
+            in_addr = &((struct sockaddr_in *) ifa->ifa_addr)->sin_addr;
+            if (inet_ntop(ifa->ifa_addr->sa_family, in_addr, buf, sizeof(buf))) {
+                freeifaddrs(myaddrs);
+                return std::string(buf);
+            }
+        }
+    }
+
+    freeifaddrs(myaddrs);
+    return ""; // Return empty string if specified interface or IPv4 address not found
+}
+
 
 
 // Open socket for specified port.
@@ -251,12 +288,8 @@ void serverMessage(int socket, std::string message){
 
 std::string queryServerString()
 {
-    std::string msg = "QUERYSERVERS,P3_GROUP_57,127.0.0.1,4070;";
-    // for(auto const& pair : servers)
-    // {
-    //     msg += pair.second->name + "," + pair.second->ip + "," + std::to_string(pair.second->port) + ";";
-    // }
-    return msg;
+    // get ip and port from serve
+    return "QUERYSERVERS,P3_GROUP_90," + ipAddress + "," + std::to_string(serverPort) + ";";
 }
 std::string serverString(std::string msg)
 {   
@@ -327,7 +360,7 @@ void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServ
   }
   else if(tokens[0].compare("QUERYSERVERS") == 0)
   {
-        std::string msg = "SERVERS,P3_GROUP_57,127.0.0.1,4070;";
+        std::string msg = "SERVERS,P3_GROUP_90," + ipAddress + "," + std::to_string(serverPort) + ";";
         msg = serverString(msg);
         serverMessage(serverSocket, msg.c_str());
   }
@@ -453,6 +486,11 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
 
 int main(int argc, char* argv[])
 {
+    std::string interfaceName = "ens192";
+    ipAddress = getSpecificIPAddress(interfaceName);
+    if (ipAddress.empty()) {
+        ipAddress = getSpecificIPAddress("lo0");
+    }
     bool finished;
     int listenClientSock;                 // Socket for connections to server
     int listenServerSock;                 // Socket for connections to server
@@ -490,7 +528,12 @@ int main(int argc, char* argv[])
 
     printf("Listening on port: %d\n", atoi(argv[1]));
 
+    clientPort = atoi(argv[1]);
+    serverPort = atoi(argv[1])+1;
 
+    std::cout << "clientPort: " << clientPort << std::endl;
+    std::cout << "serverPort: " << serverPort << std::endl;
+    std::cout << "ip address: " << ipAddress << std::endl;
     finished = false;
 
     while(!finished)
@@ -506,7 +549,6 @@ int main(int argc, char* argv[])
         timeout.tv_usec = 0; // 0 microseconds
         int m = select(clientMaxfds + 1, &readClientSockets, NULL, &exceptClientSockets, &timeout);
         int n = select(serverMaxfds + 1, &readServerSockets, NULL, &exceptServerSockets, &timeout);
-        std::cout << "m: " << n << std::endl;
         if(m < 0)
         {
             perror("select failed - closing down\n");
