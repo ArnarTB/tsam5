@@ -383,7 +383,7 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
 
         FD_SET(newServerSocket, openServerSockets);
         *serverMaxfds = std::max(*serverMaxfds, newServerSocket);
-        sleep(1);
+        //sleep(1);
         //recv(newServerSocket, boofer, sizeof(boofer), MSG_DONTWAIT);
         //std::cout << boofer << std::endl;
 
@@ -587,7 +587,9 @@ int main(int argc, char* argv[])
             if(FD_ISSET(listenServerSock, &readServerSockets))
             {   
                 std::cout << "server connection" << std::endl;
-                serverSock = accept(listenServerSock, (struct sockaddr *)&server,&serverLen);
+                serverSock = accept(listenServerSock, (struct sockaddr *)&server,&serverLen); //checka að þetta tengist rétt ekki -1
+                serverMaxfds = std::max(serverMaxfds, serverSock);
+
                 FD_SET(serverSock, &openServerSockets);
                 //serverSock = newConnections(listenServerSock, &serverMaxfds, serverSock, &openServerSockets, &server, &serverLen);
                 if(serverSock > 0)
