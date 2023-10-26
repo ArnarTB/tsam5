@@ -327,7 +327,7 @@ void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServ
   }
   else if(tokens[0].compare("QUERYSERVERS") == 0)
   {
-        std::string msg = "SERVERS,P3_GROUP_57,127.0.0.1,4070;";
+        std::string msg = "SERVERS,P3_GROUP_57,127.0.0.1,4090;";
         msg = serverString(msg);
         serverMessage(serverSocket, msg.c_str());
   }
@@ -506,7 +506,6 @@ int main(int argc, char* argv[])
         timeout.tv_usec = 0; // 0 microseconds
         int m = select(clientMaxfds + 1, &readClientSockets, NULL, &exceptClientSockets, &timeout);
         int n = select(serverMaxfds + 1, &readServerSockets, NULL, &exceptServerSockets, &timeout);
-        std::cout << "m: " << n << std::endl;
         if(m < 0)
         {
             perror("select failed - closing down\n");
