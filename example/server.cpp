@@ -594,7 +594,11 @@ int main(int argc, char* argv[])
 
                   if(FD_ISSET(server->sock, &readServerSockets))
                   {
-                      std::string keepalive = "KEEPALIVE,0";
+                      // get name of server
+                        std::string name = server->name;
+                     // get count of messages for server
+                        int count = messages[name].size();
+                      std::string keepalive = "KEEPALIVE," + std::to_string(count) + ";";
                       serverMessage(server->sock, keepalive.c_str());
                   }
         }
