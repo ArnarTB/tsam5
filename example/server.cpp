@@ -68,12 +68,20 @@ class Server
     ~Server(){}            // Virtual destructor defined for base class
 };
 
+struct Message {
+    std::string message;
+    std::string senderGroupID;
+};
+
 // Note: map is not necessarily the most efficient method to use here,
 // especially for a server with large numbers of simulataneous connections,
 // where performance is also expected to be an issue.
 //
 // Quite often a simple array can be used as a lookup table, 
 // (indexed on socket no.) sacrificing memory for speed.
+
+// list of Messages
+std::map<std::string, std::list<Message>> messages;
 
 std::map<int, Client*> clients; // Lookup table for per Client information
 
@@ -299,31 +307,6 @@ std::string serverString(std::string msg)
     }
     return msg;
 }
-//clienewConnections(listenClientSock, &clientMaxfds, clientSock, &openClientSockets, &client, &clientLen);
-
-// int newConnections(int listenSock, int *maxfds, int newSock, fd_set *openSockets, sockaddr_in *address, socklen_t *addressLen)
-// {
-//         // Accept a new connection and find the fd for the connection
-//         newSock = accept(listenSock, (struct sockaddr *)&address,addressLen);
-
-//         printf("accept***\n");
-//         std::cout << newSock << "bob" << std::endl;
-//         // Add new client/server to the list of open sockets
-//         //printFDS(openSockets, *maxfds);
-//         FD_SET(newSock, openSockets);
-//         std::cout << "1" << std::endl;
-
-//         // And update the maximum file descriptor
-//         *maxfds = std::max(*maxfds, newSock);
-//         std::cout << "1" << std::endl;
-
-
-//         // create a new client to store information.
-
-//         return newSock;
-            
-
-// }
 
 void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServerSockets, int *maxfds,
                   char *buffer) 
@@ -351,16 +334,42 @@ void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServ
         servers[serverSocket]->name = tokens[1];
         servers[serverSocket]->ip = tokens[2];
         servers[serverSocket]->port = std::stoi(tokens[3]);
-        //std::string queries = queryServerString();
-        // Inform the client that the connection was successful
-        // std::string msg = "SERVERS,P3_GROUP_57;"
-        // serverMessage(serverSocket, msg.c_str());
   }
   else if(tokens[0].compare("QUERYSERVERS") == 0)
   {
         std::string msg = "SERVERS,P3_GROUP_90," + ipAddress + "," + std::to_string(serverPort) + ";";
         msg = serverString(msg);
         serverMessage(serverSocket, msg.c_str());
+  }
+  else if (tokens[0].compare("SEND_MSG") == 0) 
+  {
+    std::string recipientGroupID = tokens[1];
+    std::string senderGroupID = tokens[2];
+    std::string message = tokens[3];
+    
+    std::cout << "Message: " << message << std::endl;
+    
+    // store message in list of messages
+    Message msg;
+    msg.message = message;
+    msg.senderGroupID = senderGroupID;
+    messages[recipientGroupID].push_back(msg);
+    std::cout << "Message stored!" << std::endl;
+
+  }
+
+  else if (tokens[0].compare("FETCH_MSGS") == 0) 
+  {
+    std::string recipientGroupID = tokens[1];
+    
+
+    for (auto const& message : messages[recipientGroupID]) {
+        std::string msg = "SEND_MSG," + recipientGroupID + "," + message.senderGroupID + "," + message.message + ";";
+        serverMessage(serverSocket, msg.c_str());
+    }
+    messages[recipientGroupID].clear();
+    std::cout << "Messages sent!" << std::endl;
+
   }
 }
 // Process command from client on the server
@@ -435,6 +444,27 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
         // rest of the stream is the message
         std::string message;
         std::getline(stream, message);
+        
+        // store message in list of messages
+        Message msg;
+        msg.message = message;
+        msg.senderGroupID = "P3_GROUP_90";
+        messages[groupid].push_back(msg);
+        std::cout << "Message stored!" << std::endl;
+
+        // create message to send
+        std::string msgToSend = "SEND_MSG," + groupid + ",P3_GROUP_90," + message + ";";
+        // find server socket to send message to
+        for(auto const& pair : servers)
+        {
+            if (pair.second->name.compare(groupid) == 0)
+            {
+                serverMessage(pair.second->sock, msgToSend.c_str());
+            } else {
+                std::cout << "Server not found! Not connected" << std::endl;
+            }
+        }
+        
   }
 
   else if((tokens[0].compare("LISTSERVERS") == 0))
