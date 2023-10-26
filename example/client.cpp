@@ -28,6 +28,27 @@
 #include <map>
 
 // Threaded function for handling responss from server
+#include <chrono>
+#include <ctime>
+#include <sstream>
+
+std::string getCurrentTimestamp() {
+    // Get the current time
+    auto now = std::chrono::system_clock::now();
+    std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+
+    // Extract local time
+    tm local_time;
+    localtime_r(&now_time, &local_time);
+
+    // Format time as "Day HH:MM:SS"
+    std::stringstream ss;
+    char buf[100];
+    strftime(buf, sizeof(buf), "%a %H:%M:%S", &local_time);
+    ss << buf;
+
+    return ss.str();
+}
 
 void listenServer(int serverSocket)
 {
@@ -122,11 +143,24 @@ int main(int argc, char* argv[])
    finished = false;
    while(!finished)
    {
+        std::vector<std::string> tokens;
+        std::string token;
        bzero(buffer, sizeof(buffer));
 
        fgets(buffer, sizeof(buffer), stdin);
 
        nwrite = send(serverSocket, buffer, strlen(buffer),0);
+
+        std::stringstream stream(buffer);
+
+        // get first token
+        std::getline(stream, token, ',');
+        tokens.push_back(token);
+        if (tokens[0].compare("GETMSG") == 0 || tokens[0].compare("SENDMSG") == 0) {
+            std::string time = getCurrentTimestamp();
+            std::cout << time << std::endl;
+        }
+
 
        if(nwrite  == -1)
        {
