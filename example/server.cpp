@@ -21,6 +21,7 @@
 #include <map>
 #include <vector>
 #include <list>
+#include <string>
 
 #include <iostream>
 #include <sstream>
@@ -200,16 +201,50 @@ std::string packageMessage(std::string &message)
     return packagedMessage;
 }
 
-std::string decodeMessage(const std::string &packagedMessage)
+std::vector<std::string> decodeMessage(const std::string &packagedMessage)
 {
-    if (packagedMessage.size() < 2) // To ensure there's at least STX and ETX
-        return "";
+    // if (packagedMessage.size() < 2) // To ensure there's at least STX and ETX
+    //     return "";
     
-    return packagedMessage.substr(1, packagedMessage.size() - 2);
+    // return packagedMessage.substr(1, packagedMessage.size() - 2);
+
+        // char buffer1[5000];  // Ensure the buffer size is adequate
+        // strcpy(buffer1, booja.c_str());
+
+        // //std::cout << buffer << std::endl;
+        // serverCommand(server->sock, &openClientSockets, &openServerSockets, &clientMaxfds, &serverMaxfds, buffer1);
+
+    const char STX = 0x02; // Start of Text
+    const char ETX = 0x03; // End of Text
+    
+    std::vector<std::string> messages;
+    size_t start = 0, end = 0;
+
+    while(start < packagedMessage.size())
+    {
+        // Find the start and end of a message
+        start = packagedMessage.find(STX, start);
+        end = packagedMessage.find(ETX, start);
+
+        // If we can't find both delimiters, break out of the loop
+        if(start == std::string::npos || end == std::string::npos) 
+            break;
+
+        // Extract the message between the delimiters and add to the messages vector
+        messages.push_back(packagedMessage.substr(start + 1, end - start - 1));
+
+        // Move start past the current message for the next iteration
+        start = end + 1;
+    }
+
+    //return packagedMessage.substr(1, packagedMessage.size() - 2);
+    return messages;
 }
 
 void serverMessage(int socket, std::string message){
     message = packageMessage(message);
+    std::cout << std::endl;
+    std::cout << "sending server message" << std::endl;
     std::cout << message << std::endl;
     send(socket, message.c_str(), message.length(), 0);
 }
@@ -224,7 +259,7 @@ std::string queryServerString()
     return msg;
 }
 std::string serverString(std::string msg)
-{
+{   
     //std::string msg = "SERVERS,P3_GROUP_57,127.0.0.1,4070;";
     for(auto const& pair : servers)
     {
@@ -270,10 +305,11 @@ void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServ
     std::vector<std::string> tokens;
     std::string token;
     char boofer[2000];
+    std::cout <<std::endl;
+    std::cout << "received server command" << std::endl;
     std::cout << buffer << std::endl;
     // Split command from client into tokens using comma as delimiter
     std::stringstream stream(buffer);
-    std::cout << "im here" << std::endl;
 
     while(std::getline(stream, token, ',')){
         tokens.push_back(token);
@@ -288,8 +324,12 @@ void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServ
         // Inform the client that the connection was successful
         // std::string msg = "SERVERS,P3_GROUP_57;"
         // serverMessage(serverSocket, msg.c_str());
-    
-
+  }
+  else if(tokens[0].compare("QUERYSERVERS") == 0)
+  {
+        std::string msg = "SERVERS,P3_GROUP_57,127.0.0.1,4070;";
+        msg = serverString(msg);
+        serverMessage(serverSocket, msg.c_str());
   }
 }
 // Process command from client on the server
@@ -311,6 +351,10 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
   if ((tokens[0].compare("CONNECT") == 0))
   {
      //clients[clientSocket]->name = tokens[1];
+        std::getline(stream, token, ',');
+        tokens.push_back(token);
+        std::getline(stream, token, ',');
+        tokens.push_back(token);
         std::string ip = tokens[1];
         int port = std::stoi(tokens[2]);
 
@@ -340,16 +384,16 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
         FD_SET(newServerSocket, openServerSockets);
         *serverMaxfds = std::max(*serverMaxfds, newServerSocket);
         sleep(1);
-        recv(newServerSocket, boofer, sizeof(boofer), MSG_DONTWAIT);
-        std::cout << boofer << std::endl;
+        //recv(newServerSocket, boofer, sizeof(boofer), MSG_DONTWAIT);
+        //std::cout << boofer << std::endl;
 
         std::string queries = queryServerString();
         // Inform the client that the connection was successful
         serverMessage(newServerSocket, queries.c_str());
-        std::string msg = "SERVERS,P3_GROUP_57,127.0.0.1,4070;";
-        msg = serverString(msg);
-        serverMessage(newServerSocket, msg.c_str());
-        servers[newServerSocket] = new Server(newServerSocket);  // ég færði þetta
+        //std::string msg = "SERVERS,P3_GROUP_57,127.0.0.1,4070;";
+        //msg = serverString(msg);
+        //serverMessage(newServerSocket, msg.c_str());
+        servers[newServerSocket] = new Server(newServerSocket);  // Þarf að færa þetta til að laga það að server skilaboðin séu ekki með tómum upplýsingum
     
 
   }
@@ -446,31 +490,7 @@ int main(int argc, char* argv[])
 
     printf("Listening on port: %d\n", atoi(argv[1]));
 
-    // if(listen(listenClientSock, BACKLOG) < 0)
-    // {
-    //     printf("Listen failed on port %s\n", argv[1]);
-    //     exit(0);
-    // }
-    // else
-    // {
-    //     FD_ZERO(&openClientSockets);
-    //     FD_SET(listenClientSock, &openClientSockets);
-    //     clientMaxfds = listenClientSock;
-    // }
 
-    // if(listen(listenServerSock, BACKLOG) < 0)
-    // {
-    //     printf("Listen failed on port %s\n", argv[1]);
-    //     exit(0);
-    // }
-
-    // else 
-    // // Add listen socket to socket set we are monitoring
-    // {
-    //     FD_ZERO(&openServerSockets);
-    //     FD_SET(listenServerSock, &openServerSockets);
-    //     serverMaxfds = listenServerSock;
-    // }
     finished = false;
 
     while(!finished)
@@ -486,7 +506,7 @@ int main(int argc, char* argv[])
         timeout.tv_usec = 0; // 0 microseconds
         int m = select(clientMaxfds + 1, &readClientSockets, NULL, &exceptClientSockets, &timeout);
         int n = select(serverMaxfds + 1, &readServerSockets, NULL, &exceptServerSockets, &timeout);
-        //std::cout << "m: " << m << std::endl;
+        std::cout << "m: " << n << std::endl;
         if(m < 0)
         {
             perror("select failed - closing down\n");
@@ -541,9 +561,11 @@ int main(int argc, char* argv[])
                       // only triggers if there is something on the socket for us.
                       else
                       {
-                          std::cout << buffer << std::endl;
+                        std::cout << std::endl;
+                        std::cout << "received client command" << std::endl;
+                        std::cout << buffer << std::endl;
 
-                          clientCommand(client->sock, &openClientSockets, &openServerSockets, &clientMaxfds, &serverMaxfds, buffer);
+                        clientCommand(client->sock, &openClientSockets, &openServerSockets, &clientMaxfds, &serverMaxfds, buffer);
                       }
                   }
                }
@@ -554,7 +576,7 @@ int main(int argc, char* argv[])
         }
         memset(buffer, 0, sizeof(buffer));
 
-        if(n < 0)
+        if(n < 0) //SERVERSTUFF
         {
             perror("select failed - closing down\n");
             finished = true;
@@ -605,13 +627,20 @@ int main(int argc, char* argv[])
                       else
                       {   
                         
-                            std::string booja = decodeMessage(buffer);
-                            // If you need to copy the content into a separate char array:
-                            char buffer1[5000];  // Ensure the buffer size is adequate
-                            strcpy(buffer1, booja.c_str());
+                            std::vector<std::string> decodedMessages = decodeMessage(std::string(buffer));
 
-                          //std::cout << buffer << std::endl;
-                          serverCommand(server->sock, &openClientSockets, &openServerSockets, &clientMaxfds, &serverMaxfds, buffer1);
+                            for(const std::string& msg : decodedMessages)
+                            {
+                                char buffer1[5000];  // Ensure the buffer size is adequate
+                                strcpy(buffer1, msg.c_str());
+                                serverCommand(server->sock, &openClientSockets, &openServerSockets, &clientMaxfds, &serverMaxfds, buffer1);
+                            }
+                            // If you need to copy the content into a separate char array:
+                        //     char buffer1[5000];  // Ensure the buffer size is adequate
+                        //     strcpy(buffer1, booja.c_str());
+
+                        //   //std::cout << buffer << std::endl;
+                        //   serverCommand(server->sock, &openClientSockets, &openServerSockets, &clientMaxfds, &serverMaxfds, buffer1);
 
 
 
@@ -630,4 +659,6 @@ int main(int argc, char* argv[])
 
     }
 }
-//CONNECT 130.208.243.61 4002
+//CONNECT,130.208.243.61,4002
+//CONNECT,130.208.243.61,4003;
+//CONNECT,130.208.243.61,4001;
