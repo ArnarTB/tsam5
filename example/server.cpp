@@ -29,6 +29,7 @@
 #include <sstream>
 #include <thread>
 #include <map>
+#include <chrono>
 
 #include <unistd.h>
 
@@ -80,8 +81,8 @@ std::map<int, Server*> servers; // Lookup table for per Client information
 
 // Get IP address
 std::string ipAddress; // Declare a global variable to store the IP address
-int clientPort;
-int serverPort;
+int clientPort, serverPort;
+
 
 std::string getSpecificIPAddress(const std::string& interfaceName) {
     struct ifaddrs *myaddrs, *ifa;
@@ -133,13 +134,9 @@ int open_socket(int portno, fd_set *openSockets, int *maxfds)
       return(-1);
    }
 
-
    // Turn on SO_REUSEADDR to allow socket to be quickly reused after 
    // program exit.
-
-
    set = 1;
-
    if(setsockopt(sock, SOL_SOCKET, SOCK_NONBLOCK, &set, sizeof(set)) < 0)
    {
      perror("Failed to set SOCK_NOBBLOCK");
@@ -188,7 +185,6 @@ void printFDS(const fd_set *set, int maxfds)
     }
     std::cout << std::endl;
 }
-
 
 void closeClient(int clientSocket, fd_set *openClientSockets, int *maxfds)
 {
@@ -295,8 +291,11 @@ std::string serverString(std::string msg)
 {   
     //std::string msg = "SERVERS,P3_GROUP_57,127.0.0.1,4070;";
     for(auto const& pair : servers)
-    {
+    {   
+        if(pair.second->port != 0)
+        {
         msg += pair.second->name + "," + pair.second->ip + "," + std::to_string(pair.second->port) + ";";
+        }
     }
     return msg;
 }
@@ -326,7 +325,7 @@ std::string serverString(std::string msg)
 
 // }
 
-void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServerSockets, int *clientMaxfds, int *serverMaxfds,
+void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServerSockets, int *maxfds,
                   char *buffer) 
  {
 //   std::vector<std::string> tokens;
@@ -337,7 +336,6 @@ void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServ
 
     std::vector<std::string> tokens;
     std::string token;
-    char boofer[2000];
     std::cout <<std::endl;
     std::cout << "received server command" << std::endl;
     std::cout << buffer << std::endl;
@@ -367,12 +365,11 @@ void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServ
 }
 // Process command from client on the server
 
-void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServerSockets, int *clientMaxfds, int *serverMaxfds,
+void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServerSockets, int *maxfds,
                   char *buffer) 
 {
   std::vector<std::string> tokens;
   std::string token;
-  char boofer[2000];
 
   // Split command from client into tokens for parsing
   std::stringstream stream(buffer);
@@ -415,28 +412,20 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
         // Store this new connection in the clients map
 
         FD_SET(newServerSocket, openServerSockets);
-        *serverMaxfds = std::max(*serverMaxfds, newServerSocket);
-        //sleep(1);
-        //recv(newServerSocket, boofer, sizeof(boofer), MSG_DONTWAIT);
-        //std::cout << boofer << std::endl;
+        *maxfds = std::max(*maxfds, newServerSocket);
+
 
         std::string queries = queryServerString();
         // Inform the client that the connection was successful
         serverMessage(newServerSocket, queries.c_str());
-        //std::string msg = "SERVERS,P3_GROUP_57,127.0.0.1,4070;";
-        //msg = serverString(msg);
-        //serverMessage(newServerSocket, msg.c_str());
-        servers[newServerSocket] = new Server(newServerSocket);  // Þarf að færa þetta til að laga það að server skilaboðin séu ekki með tómum upplýsingum
+
+        servers[newServerSocket] = new Server(newServerSocket);  
     
 
   }
   else if(tokens[0].compare("LEAVE") == 0)
   {
-      // Close the socket, and leave the socket handling
-      // code to deal with tidying up clients etc. when
-      // select() detects the OS has torn down the connection.
- 
-      closeClient(clientSocket, openClientSockets, clientMaxfds);
+      closeClient(clientSocket, openClientSockets, maxfds);
   }
   else if(tokens[0].compare("SENDMSG") == 0)
   {
@@ -446,12 +435,8 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
         // rest of the stream is the message
         std::string message;
         std::getline(stream, message);
-        // send the message to server associated with groupid
-        
-
   }
-  // This is slightly fragile, since it's relying on the order
-  // of evaluation of the if statement.
+
   else if((tokens[0].compare("LISTSERVERS") == 0))
   {
       std::string msg = "SERVERS: ";
@@ -459,24 +444,6 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
       msg = serverString(msg);
       send(clientSocket, msg.c_str(), msg.length(), 0);
    }
-      
-      //send(pair.second->sock, msg.c_str(), msg.length(),0);
-  
-  else if(tokens[0].compare("MSG") == 0)
-  {
-      for(auto const& pair : clients)
-      {
-          if(pair.second->name.compare(tokens[1]) == 0)
-          {
-              std::string msg;
-              for(auto i = tokens.begin()+2;i != tokens.end();i++) 
-              {
-                  msg += *i + " ";
-              }
-              send(pair.second->sock, msg.c_str(), msg.length(),0);
-          }
-      }
-  }
   else
   {
       std::cout << "Unknown command from client:" << buffer << std::endl;
@@ -492,21 +459,14 @@ int main(int argc, char* argv[])
         ipAddress = getSpecificIPAddress("lo0");
     }
     bool finished;
-    int listenClientSock;                 // Socket for connections to server
-    int listenServerSock;                 // Socket for connections to server
-    int clientSock;                 // Socket of connecting client
-    int serverSock;                 // Socket of connecting server
+    int listenClientSock, listenServerSock;                 // Socket for connections to server
+    int clientSock, serverSock;                 // Socket of connecting client
+    fd_set openServerSockets, openClientSockets;        // Current open sockets 
+    fd_set readServerSockets, readClientSockets;             // Socket list for select()        
+    fd_set exceptServerSockets, exceptClientSockets;           // Exception socket list       
 
-    fd_set openServerSockets;             // Current open sockets 
-    fd_set readServerSockets;             // Socket list for select()        
-    fd_set exceptServerSockets;           // Exception socket list
 
-    fd_set openClientSockets;             // Current open sockets 
-    fd_set readClientSockets;             // Socket list for select()        
-    fd_set exceptClientSockets;           // Exception socket list
-
-    int serverMaxfds;                     // Passed to select() as max fd in set
-    int clientMaxfds;                     // Passed to select() as max fd in set
+    int maxfds;                     // Passed to select() as max fd in set
     struct sockaddr_in client;
     struct sockaddr_in server;
 
@@ -522,8 +482,8 @@ int main(int argc, char* argv[])
     }
 
     // Setup socket for server to listen to
-    listenClientSock = open_socket(atoi(argv[1]), &openClientSockets, &clientMaxfds);
-    listenServerSock = open_socket(atoi(argv[1])+1, &openServerSockets, &serverMaxfds);
+    listenClientSock = open_socket(atoi(argv[1]), &openClientSockets, &maxfds);
+    listenServerSock = open_socket(atoi(argv[1])+1, &openServerSockets, &maxfds);
     
 
     printf("Listening on port: %d\n", atoi(argv[1]));
@@ -536,6 +496,8 @@ int main(int argc, char* argv[])
     std::cout << "ip address: " << ipAddress << std::endl;
     finished = false;
 
+    // Timer for keepalives
+    auto startTime = std::chrono::system_clock::now();
     while(!finished)
     {
         // Get modifiable copy of readServerSockets
@@ -547,8 +509,27 @@ int main(int argc, char* argv[])
         struct timeval timeout;
         timeout.tv_sec = 1;  // 0 seconds
         timeout.tv_usec = 0; // 0 microseconds
-        int m = select(clientMaxfds + 1, &readClientSockets, NULL, &exceptClientSockets, &timeout);
-        int n = select(serverMaxfds + 1, &readServerSockets, NULL, &exceptServerSockets, &timeout);
+
+        auto currentTime = std::chrono::system_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::seconds>(currentTime - startTime);
+
+        if (duration.count() >= 60) {
+            std::cout << "Sending keepalives" << std::endl;
+            startTime = std::chrono::system_clock::now();
+            for(auto const& pair : servers)
+               {
+                  Server *server = pair.second;
+
+                  if(FD_ISSET(server->sock, &readServerSockets))
+                  {
+                      std::string keepalive = "KEEPALIVE,0";
+                      serverMessage(server->sock, keepalive.c_str());
+                  }
+        }
+        }
+
+        int m = select(maxfds + 1, &readClientSockets, NULL, &exceptClientSockets, &timeout);
+        int n = select(maxfds + 1, &readServerSockets, NULL, &exceptServerSockets, &timeout);
         if(m < 0)
         {
             perror("select failed - closing down\n");
@@ -560,17 +541,12 @@ int main(int argc, char* argv[])
 
             if(FD_ISSET(listenClientSock, &readClientSockets))
             {   
-                //printFDS(&openClientSockets, clientMaxfds);
-                //clientSock = newConnections(listenClientSock, &clientMaxfds, clientSock, &openClientSockets, &client, &clientLen);
                 clientSock = accept(listenClientSock, (struct sockaddr *)&client,&clientLen);
-
                 printf("accept***\n");
-
                 FD_SET(clientSock, &openClientSockets);
 
-
-        // And update the maximum file descriptor
-                clientMaxfds = std::max(clientMaxfds, clientSock);
+                // And update the maximum file descriptor
+                maxfds = std::max(maxfds, clientSock);
 
                 if(clientSock > 0)
                 {
@@ -596,7 +572,7 @@ int main(int argc, char* argv[])
                       if(recv(client->sock, buffer, sizeof(buffer), MSG_DONTWAIT) == 0)
                       {
                           disconnectedClients.push_back(client);
-                          closeClient(client->sock, &openClientSockets, &clientMaxfds);
+                          closeClient(client->sock, &openClientSockets, &maxfds);
 
                       }
                       // We don't check for -1 (nothing received) because select()
@@ -607,7 +583,7 @@ int main(int argc, char* argv[])
                         std::cout << "received client command" << std::endl;
                         std::cout << buffer << std::endl;
 
-                        clientCommand(client->sock, &openClientSockets, &openServerSockets, &clientMaxfds, &serverMaxfds, buffer);
+                        clientCommand(client->sock, &openClientSockets, &openServerSockets, &maxfds, buffer);
                       }
                   }
                }
@@ -618,7 +594,7 @@ int main(int argc, char* argv[])
         }
         memset(buffer, 0, sizeof(buffer));
 
-        if(n < 0) //SERVERSTUFF
+        if(n < 0) //SERVER
         {
             perror("select failed - closing down\n");
             finished = true;
@@ -630,10 +606,9 @@ int main(int argc, char* argv[])
             {   
                 std::cout << "server connection" << std::endl;
                 serverSock = accept(listenServerSock, (struct sockaddr *)&server,&serverLen); //checka að þetta tengist rétt ekki -1
-                serverMaxfds = std::max(serverMaxfds, serverSock);
+                maxfds = std::max(maxfds, serverSock);
 
                 FD_SET(serverSock, &openServerSockets);
-                //serverSock = newConnections(listenServerSock, &serverMaxfds, serverSock, &openServerSockets, &server, &serverLen);
                 if(serverSock > 0)
                 {
                     servers[serverSock] = new Server(serverSock);// create a new client to store information.
@@ -649,7 +624,7 @@ int main(int argc, char* argv[])
                n--;// Decrement the number of sockets waiting to be dealt with
 
             }
-            // Now check for commands from clients
+            // Now check for commands from the servers
             std::list<Server *> disconnectedServers;  
             while(n-- > 0)
             {
@@ -663,7 +638,7 @@ int main(int argc, char* argv[])
                       if(recv(server->sock, buffer, sizeof(buffer), MSG_DONTWAIT) == 0)
                       {
                           disconnectedServers.push_back(server);
-                          closeClient(server->sock, &openServerSockets, &serverMaxfds);
+                          closeClient(server->sock, &openServerSockets, &maxfds);
 
                       }
                       // We don't check for -1 (nothing received) because select()
@@ -677,18 +652,9 @@ int main(int argc, char* argv[])
                             {
                                 char buffer1[5000];  // Ensure the buffer size is adequate
                                 strcpy(buffer1, msg.c_str());
-                                serverCommand(server->sock, &openClientSockets, &openServerSockets, &clientMaxfds, &serverMaxfds, buffer1);
+                                serverCommand(server->sock, &openClientSockets, &openServerSockets, &maxfds, buffer1);
                             }
-                            // If you need to copy the content into a separate char array:
-                        //     char buffer1[5000];  // Ensure the buffer size is adequate
-                        //     strcpy(buffer1, booja.c_str());
 
-                        //   //std::cout << buffer << std::endl;
-                        //   serverCommand(server->sock, &openClientSockets, &openServerSockets, &clientMaxfds, &serverMaxfds, buffer1);
-
-
-
-                          //clientCommand(server->sock, &openServerSockets, &openServerSockets, &serverMaxfds, &serverMaxfds, buffer);
                       }
                   }
                }
@@ -697,10 +663,6 @@ int main(int argc, char* argv[])
                   servers.erase(c->sock);
             }
         }
-
-
-
-
     }
 }
 //CONNECT,130.208.243.61,4002
