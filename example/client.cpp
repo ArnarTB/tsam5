@@ -67,6 +67,8 @@ void listenServer(int serverSocket)
        }
        else if(nread > 0)
        {
+            std::string time = getCurrentTimestamp();
+            std::cout << time << " ";
           printf("%s\n", buffer);
        }
        printf("here\n");
