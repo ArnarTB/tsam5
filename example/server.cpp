@@ -293,7 +293,7 @@ void serverMessage(int socket, std::string message){
 std::string queryServerString()
 {
     // get ip and port from serve
-    return "QUERYSERVERS,P3_GROUP_90," + ipAddress + "," + std::to_string(serverPort) + ";";
+    return "QUERYSERVERS,P3_GROUP_91," + ipAddress + "," + std::to_string(serverPort) + ";";
 }
 std::string serverString(std::string msg)
 {   
@@ -337,7 +337,7 @@ void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServ
   }
   else if(tokens[0].compare("QUERYSERVERS") == 0)
   {
-        std::string msg = "SERVERS,P3_GROUP_90," + ipAddress + "," + std::to_string(serverPort) + ";";
+        std::string msg = "SERVERS,P3_GROUP_91," + ipAddress + "," + std::to_string(serverPort) + ";";
         msg = serverString(msg);
         serverMessage(serverSocket, msg.c_str());
   }
@@ -346,6 +346,11 @@ void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServ
     std::string recipientGroupID = tokens[1];
     std::string senderGroupID = tokens[2];
     std::string message = tokens[3];
+    if (tokens.size() > 4) {
+        for (int i = 4; i < tokens.size(); i++) {
+            message += "," + tokens[i];
+        }
+    }
     
     std::cout << "Message: " << message << std::endl;
     
@@ -385,6 +390,15 @@ void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServ
     messages[recipientGroupID].clear();
     std::cout << "Messages sent!" << std::endl;
 
+  }
+  else if (tokens[0].compare("STATUSREQ") == 0) {
+    // Reply with comma separated list of servers and no. of messages you have for them
+    std::string msg = "STATUSRESP," + tokens[1] + ",";
+    for (auto const& pair : servers) {
+        std::string oneServer = pair.second->name + "," + std::to_string(messages[pair.second->name].size()) + ";";
+        msg += oneServer;
+    }
+    serverMessage(serverSocket, msg.c_str());
   }
 }
 // Process command from client on the server
@@ -463,12 +477,12 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
         // store message in list of messages
         Message msg;
         msg.message = message;
-        msg.senderGroupID = "P3_GROUP_90";
+        msg.senderGroupID = groupid;
         messages[groupid].push_back(msg);
         std::cout << "Message stored!" << std::endl;
 
         // create message to send
-        std::string msgToSend = "SEND_MSG," + groupid + ",P3_GROUP_90," + message + ";";
+        std::string msgToSend = "SEND_MSG," + groupid + ",P3_GROUP_91," + message + ";";
         // find server socket to send message to
         for(auto const& pair : servers)
         {
@@ -484,18 +498,6 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
   else if (tokens[0].compare("GETMSG") == 0) {
     std::string groupid;
     std::getline(stream, groupid);
-
-    // find server socket to send message to
-    // for(auto const& pair : servers)
-    // {
-    //     if (pair.second->name.compare(groupid) == 0)
-    //     {
-    //         std::string msgToSend = "FETCH_MSGS," + groupid + ";";
-    //         serverMessage(pair.second->sock, msgToSend.c_str());
-    //     } else {
-    //         std::cout << "Server not found! Not connected" << std::endl;
-    //     }
-    // }
 
     // get first message from list of messages
     if (messages[groupid].size() > 0) {
@@ -744,3 +746,4 @@ int main(int argc, char* argv[])
 //CONNECT,130.208.243.61,4002
 //CONNECT,130.208.243.61,4003;
 //CONNECT,130.208.243.61,4001;
+// STATUSRESP,P3_GROUP_2, I_1, P3 _GROUP_4, 20, P3_GROUP_71, 2
