@@ -293,11 +293,10 @@ void serverMessage(int socket, std::string message){
 std::string queryServerString()
 {
     // get ip and port from serve
-    return "QUERYSERVERS,P3_GROUP_91," + ipAddress + "," + std::to_string(serverPort) + ";";
+    return "QUERYSERVERS,P3_GROUP_90," + ipAddress + "," + std::to_string(serverPort) + ";";
 }
 std::string serverString(std::string msg)
 {   
-    //std::string msg = "SERVERS,P3_GROUP_57,127.0.0.1,4070;";
     for(auto const& pair : servers)
     {   
         if(pair.second->port != 0)
@@ -311,18 +310,12 @@ std::string serverString(std::string msg)
 void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServerSockets, int *maxfds,
                   char *buffer) 
  {
-//   std::vector<std::string> tokens;
-//   std::string token;
-
-//   // Split command from client into tokens for parsing
-//   std::stringstream stream(buffer);
-
     std::vector<std::string> tokens;
     std::string token;
     std::cout <<std::endl;
     std::cout << "received server command" << std::endl;
     std::cout << buffer << std::endl;
-    // Split command from client into tokens using comma as delimiter
+
     std::stringstream stream(buffer);
 
     while(std::getline(stream, token, ',')){
@@ -337,7 +330,8 @@ void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServ
   }
   else if(tokens[0].compare("QUERYSERVERS") == 0)
   {
-        std::string msg = "SERVERS,P3_GROUP_91," + ipAddress + "," + std::to_string(serverPort) + ";";
+        servers[serverSocket]->name = tokens[1];
+        std::string msg = "SERVERS,P3_GROUP_90," + ipAddress + "," + std::to_string(serverPort) + ";";
         msg = serverString(msg);
         serverMessage(serverSocket, msg.c_str());
   }
@@ -352,19 +346,12 @@ void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServ
         }
     }
     
-    std::cout << "Message: " << message << std::endl;
-    
     // store message in list of messages
     Message msg;
     msg.message = message;
     msg.senderGroupID = senderGroupID;
     messages[recipientGroupID].push_back(msg);
     std::cout << "Message stored!" << std::endl;
-    if (recipientGroupID == "P3_GROUP_90") {
-        std::cout << "Message received: " << message << std::endl;
-        // send to client
-
-    }
   }
 
   else if (tokens[0].compare("FETCH_MSGS") == 0) 
@@ -395,10 +382,25 @@ void serverCommand(int serverSocket, fd_set *openClientSockets, fd_set *openServ
     // Reply with comma separated list of servers and no. of messages you have for them
     std::string msg = "STATUSRESP," + tokens[1] + ",";
     for (auto const& pair : servers) {
-        std::string oneServer = pair.second->name + "," + std::to_string(messages[pair.second->name].size()) + ";";
+        std::string oneServer = pair.second->name + "," + std::to_string(messages[pair.second->name].size()) + ",";
         msg += oneServer;
     }
     serverMessage(serverSocket, msg.c_str());
+  }
+  else if (tokens[0].compare("KEEPALIVE") == 0) {
+    if (tokens[1].compare("0") == 0) {
+        std::cout << "No messages to send" << std::endl;
+    } else {
+        std::cout << "Messages to send" << std::endl;
+        std::string msg = "FETCH_MSGS,";
+        for (auto const& pair : servers) {
+            if (pair.second->sock == serverSocket) {
+                msg += pair.second->name + ";";
+                break;
+            }
+        }
+        serverMessage(serverSocket, msg.c_str());
+    }
   }
 }
 // Process command from client on the server
@@ -414,11 +416,17 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
 
   // get first token
     std::getline(stream, token, ',');
+    token.erase(std::remove_if(token.begin(), token.end(), ::isspace), token.end());
     tokens.push_back(token);
 
   if ((tokens[0].compare("CONNECT") == 0))
   {
-     //clients[clientSocket]->name = tokens[1];
+     // check if max servers reached
+        if (servers.size() > 10) {
+            std::cout << "Max servers reached" << std::endl;
+            return;
+        }
+
         std::getline(stream, token, ',');
         tokens.push_back(token);
         std::getline(stream, token, ',');
@@ -457,7 +465,9 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
         // Inform the client that the connection was successful
         serverMessage(newServerSocket, queries.c_str());
 
-        servers[newServerSocket] = new Server(newServerSocket);  
+        servers[newServerSocket] = new Server(newServerSocket); 
+        servers[newServerSocket]->port = port; 
+        servers[newServerSocket]->ip = ip;
     
 
   }
@@ -473,42 +483,42 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
         // rest of the stream is the message
         std::string message;
         std::getline(stream, message);
-        
-        // store message in list of messages
-        Message msg;
-        msg.message = message;
-        msg.senderGroupID = groupid;
-        messages[groupid].push_back(msg);
-        std::cout << "Message stored!" << std::endl;
 
-        // create message to send
-        std::string msgToSend = "SEND_MSG," + groupid + ",P3_GROUP_91," + message + ";";
         // find server socket to send message to
+        int recipientSocket;
         for(auto const& pair : servers)
         {
             if (pair.second->name.compare(groupid) == 0)
             {
-                serverMessage(pair.second->sock, msgToSend.c_str());
+                recipientSocket = pair.second->sock;
+                std::string msg = "SEND_MSG," + groupid + "," + "P3_GROUP_90" + "," + message + ";";
+                serverMessage(recipientSocket, msg.c_str());
+                break;
             } else {
                 std::cout << "Server not found! Not connected" << std::endl;
+                Message msg;
+                msg.message = message;
+                msg.senderGroupID = "P3_GROUP_90";
+                messages[groupid].push_back(msg);
+                std::cout << "Message stored!" << std::endl;
             }
         }
+        
+        // store message in list of messages
+        
         
   }
   else if (tokens[0].compare("GETMSG") == 0) {
     std::string groupid;
     std::getline(stream, groupid);
-
     // get first message from list of messages
     if (messages[groupid].size() > 0) {
         Message msg = messages[groupid].front();
         std::string msgToClient = msg.message;
-        std::cout << "Message to send: " << msgToClient << std::endl;
         // send to client
         send(clientSocket, msgToClient.c_str(), msgToClient.length(), 0);
         messages[groupid].pop_front();
     }
-
   }
 
   else if((tokens[0].compare("LISTSERVERS") == 0))
@@ -517,6 +527,13 @@ void clientCommand(int clientSocket, fd_set *openClientSockets, fd_set *openServ
       
       msg = serverString(msg);
       send(clientSocket, msg.c_str(), msg.length(), 0);
+   }
+   else if(tokens[0].compare("SENDREQ") == 0) {
+        std::string msg = "STATUSREQ,P3_GROUP_90";
+        for(auto const& pair : servers)
+        {
+            serverMessage(pair.second->sock, msg.c_str());
+        }
    }
   else
   {
@@ -600,7 +617,7 @@ int main(int argc, char* argv[])
                         std::string name = server->name;
                      // get count of messages for server
                         int count = messages[name].size();
-                      std::string keepalive = "KEEPALIVE," + std::to_string(count) + ";";
+                      std::string keepalive = "KEEPALIVE," + std::to_string(count);
                       serverMessage(server->sock, keepalive.c_str());
                   }
         }
@@ -610,7 +627,7 @@ int main(int argc, char* argv[])
         int n = select(maxfds + 1, &readServerSockets, NULL, &exceptServerSockets, &timeout);
         if(m < 0)
         {
-            perror("select failed - closing down\n");
+            perror("select failed - closing down!\n");
             finished = true;
         }
         else

@@ -62,16 +62,14 @@ void listenServer(int serverSocket)
 
        if(nread == 0)                      // Server has dropped us
        {
-          printf("Over and Out\n");
+          printf("Over and Out!\n");
           exit(0);
        }
        else if(nread > 0)
        {
             std::string time = getCurrentTimestamp();
             std::cout<< buffer << " " << time << std::endl;
-          
        }
-       printf("here\n");
     }
 }
 

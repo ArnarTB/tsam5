@@ -1,0 +1,48 @@
+- Recieve messages from another group/s
+GETMSG,P3_GROUP_90
+Mon 17:49:55
+HÆHÆHÆHÆHÆHÆ Mon 17:49:56
+
+GETMSG,P3_GROUP_90
+Mon 18:07:24
+Thank you for reaching out to us. Your message has been received by GROUP_69. We will review it and get back to you as soon as possible. We appreciate your patience.
+
+Warm regards,
+GROUP_69 Mon 18:07:24
+
+GETMSG,P3_GROUP_90
+Mon 18:22:13
+Hellow Mon 18:22:14
+
+GETMSG,P3_GROUP_90
+Mon 18:26:14
+GETFACKED Mon 18:26:15
+
+GETMSG,P3_GROUP_90
+Mon 18:28:33
+hello raggi Mon 18:28:33
+
+GETMSG,P3_GROUP_90
+Mon 19:19:00
+ HI group 90! can you see this msg?
+ Mon 19:19:00
+
+- Connected to Instructor
+raggiolafs00@Ragnars-MacBook-Air example % ./client 130.208.243.61 4037
+CONNECT,130.208.243.61,4002
+LISTSERVERS
+SERVERS: Instr_2,130.208.243.61,4002; Mon 19:15:10
+
+- Send message to another group/s
+LISTSERVERS
+SERVERS: P3_GROUP_29,130.208.243.61,4089; Mon 18:27:48
+SENDMSG,P3_GROUP_29,Hæ Haukur
+Mon 18:28:10
+
+CONNECT,130.208.243.61,4021
+SENDMSG,P3_GROUP_30,Halló siggi
+Mon 18:20:41
+
+- Decoded hashed message from number station:
+hashed: abcc7832a1bfe0a79b84a31494c6379b
+decoded: comes 

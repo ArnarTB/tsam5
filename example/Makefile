@@ -4,16 +4,24 @@ CC = g++
 # Compiler Flags
 CFLAGS = -std=c++11
 
-# Target Executable
-TARGET = server
+# Target Executables
+SERVER_TARGET = server
+CLIENT_TARGET = client
 
-# Source File
-SOURCE = server.cpp
+# Source Files
+SERVER_SOURCE = server.cpp
+CLIENT_SOURCE = client.cpp
 
-# Create the Target Executable
-$(TARGET): $(SOURCE)
-	$(CC) $(CFLAGS) -o $(TARGET) $(SOURCE)
+# Create the Target Executables
+all: $(SERVER_TARGET) $(CLIENT_TARGET)
 
-# Clean Target
+$(SERVER_TARGET): $(SERVER_SOURCE)
+	$(CC) $(CFLAGS) -o $(SERVER_TARGET) $(SERVER_SOURCE)
+
+$(CLIENT_TARGET): $(CLIENT_SOURCE)
+	$(CC) $(CFLAGS) -o $(CLIENT_TARGET) $(CLIENT_SOURCE)
+
+# Clean Targets
 clean:
-	rm -f $(TARGET)
+	rm -f $(SERVER_TARGET) $(CLIENT_TARGET)
+
